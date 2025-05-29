@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Idle Clicker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .game-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+
+        .main-game {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .stats-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .currency {
+            font-size: 2.5em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .engagement-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 1.1em;
+            margin-bottom: 20px;
+        }
+
+        .engagement-bar {
+            width: 200px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .engagement-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .click-button {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            border: none;
+            font-size: 2em;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            margin: 30px auto;
+            display: block;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .click-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .click-button:active {
+            transform: scale(0.95);
+        }
+
+        .click-button::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transform: rotate(45deg);
+            transition: all 0.5s;
+        }
+
+        .click-button:hover::before {
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .floating-number {
+            position: absolute;
+            font-size: 1.5em;
+            font-weight: bold;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            color: #feca57;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0px);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-80px);
+            }
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .upgrade-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .section-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #feca57;
+        }
+
+        .upgrade {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .upgrade:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .upgrade.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .upgrade.disabled:hover {
+            transform: none;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .upgrade-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .upgrade-cost {
+            color: #feca57;
+            font-size: 0.9em;
+        }
+
+        .upgrade-count {
+            color: #48dbfb;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+
+        .prestige-section {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: 2px solid #feca57;
+        }
+
+        .prestige-button {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            border: none;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .prestige-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .prestige-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .stats {
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .milestone-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: 3px solid #feca57;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            z-index: 1000;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            color: white;
+            text-align: center;
+            animation: popupAppear 0.5s ease-out;
+        }
+
+        .milestone-popup h2 {
+            color: #feca57;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .milestone-stats {
+            text-align: left;
+            margin: 20px 0;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .milestone-stats .stat-category {
+            font-weight: bold;
+            color: #feca57;
+            margin: 15px 0 8px 0;
+            font-size: 1.1em;
+        }
+
+        .milestone-stats .stat-category:first-child {
+            margin-top: 0;
+        }
+
+        .close-popup {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            border: none;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1.1em;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .close-popup:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes popupAppear {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+            100% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+            
+            .click-button {
+                width: 150px;
+                height: 150px;
+                font-size: 1.5em;
+            }
+            
+            .currency {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="main-game">
+            <div class="stats-header">
+                <div class="currency" id="currency">$0</div>
+                <div class="engagement-indicator">
+                    <span>Engagement:</span>
+                    <div class="engagement-bar">
+                        <div class="engagement-fill" id="engagementFill"></div>
+                    </div>
+                    <span id="engagementText">Active</span>
+                </div>
+                <div id="cpsDisplay">$0/sec</div>
+            </div>
+            
+            <button class="click-button" id="clickButton">
+                💰<br>CLICK
+            </button>
+        </div>
+
+        <div class="sidebar">
+            <div class="upgrade-section">
+                <div class="section-title">🔧 Click Upgrades</div>
+                <div id="clickUpgrades"></div>
+            </div>
+
+            <div class="upgrade-section">
+                <div class="section-title">🏭 Auto Generators</div>
+                <div id="autoUpgrades"></div>
+            </div>
+
+            <div class="upgrade-section prestige-section">
+                <div class="section-title">⭐ Prestige</div>
+                <div class="stats">
+                    <div class="stat-line">
+                        <span>Prestige Points:</span>
+                        <span id="prestigePoints">0</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Total Resets:</span>
+                        <span id="totalResets">0</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Next PP:</span>
+                        <span id="nextPrestige">$1M</span>
+                    </div>
+                </div>
+                <button class="prestige-button" id="prestigeButton" disabled>
+                    Reset for +1 PP
+                </button>
+            </div>
+
+            <div class="upgrade-section">
+                <div class="section-title">📊 Statistics</div>
+                <div class="stats" id="gameStats"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class IdleClickerGame {
+            constructor() {
+                this.currency = 0;
+                this.clickPower = 1;
+                this.cps = 0;
+                this.prestigePoints = 0;
+                this.totalResets = 0;
+                this.totalClicks = 0;
+                this.totalEarned = 0;
+                this.sessionStartTime = Date.now();
+                this.lastClickTime = Date.now();
+                this.lastActivityTime = Date.now();
+                this.engagementLevel = 1;
+                this.idleTime = 0;
+                this.milestoneShown = false;
+                this.maxEngagement = 1;
+                this.minEngagement = 1;
+                this.totalIdleTime = 0;
+                this.totalActiveTime = 0;
+                this.engagementHistory = [];
+                this.clickTimes = [];
+                this.upgradesPurchased = 0;
+                
+                this.clickUpgrades = [
+                    { name: 'Better Cursor', baseCost: 15, count: 0, power: 1 },
+                    { name: 'Iron Finger', baseCost: 100, count: 0, power: 5 },
+                    { name: 'Golden Touch', baseCost: 1000, count: 0, power: 25 },
+                    { name: 'Diamond Grip', baseCost: 10000, count: 0, power: 100 }
+                ];
+
+                this.autoUpgrades = [
+                    { name: 'Auto Clicker', baseCost: 50, count: 0, cps: 1 },
+                    { name: 'Money Printer', baseCost: 500, count: 0, cps: 8 },
+                    { name: 'Investment Bot', baseCost: 5000, count: 0, cps: 50 },
+                    { name: 'AI Trader', baseCost: 50000, count: 0, cps: 300 },
+                    { name: 'Quantum Miner', baseCost: 500000, count: 0, cps: 2000 }
+                ];
+
+                this.initializeElements();
+                this.bindEvents();
+                this.startGameLoop();
+                this.updateDisplay();
+            }
+
+            initializeElements() {
+                this.currencyEl = document.getElementById('currency');
+                this.clickButton = document.getElementById('clickButton');
+                this.cpsDisplay = document.getElementById('cpsDisplay');
+                this.engagementFill = document.getElementById('engagementFill');
+                this.engagementText = document.getElementById('engagementText');
+                this.prestigeButton = document.getElementById('prestigeButton');
+                this.prestigePointsEl = document.getElementById('prestigePoints');
+                this.totalResetsEl = document.getElementById('totalResets');
+                this.nextPrestigeEl = document.getElementById('nextPrestige');
+                this.gameStatsEl = document.getElementById('gameStats');
+            }
+
+            bindEvents() {
+                // Use both click and touchstart for better mobile support
+                this.clickButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.handleClick(e);
+                });
+                
+                this.clickButton.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.handleClick(e.touches[0] || e);
+                }, { passive: false });
+                
+                // Enhanced prestige button handling
+                const prestigeHandler = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.prestige();
+                };
+                
+                this.prestigeButton.addEventListener('click', prestigeHandler);
+                this.prestigeButton.addEventListener('touchstart', prestigeHandler, { passive: false });
+                
+                // Track user activity (but exclude clicks on game buttons to avoid double counting)
+                document.addEventListener('click', (e) => {
+                    if (e.target !== this.clickButton && 
+                        e.target !== this.prestigeButton && 
+                        !e.target.closest('.upgrade')) {
+                        this.updateActivity();
+                    }
+                });
+                document.addEventListener('keypress', () => this.updateActivity());
+                document.addEventListener('mousemove', () => this.updateActivity());
+            }
+
+            handleClick(e) {
+                // Ensure we have valid coordinates for floating numbers
+                let clientX, clientY;
+                
+                if (e.touches && e.touches[0]) {
+                    // Touch event
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                } else if (e.clientX !== undefined && e.clientY !== undefined) {
+                    // Mouse event
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                } else {
+                    // Fallback to button center
+                    const rect = this.clickButton.getBoundingClientRect();
+                    clientX = rect.left + rect.width / 2;
+                    clientY = rect.top + rect.height / 2;
+                }
+                
+                const clickValue = this.getClickValue();
+                this.currency += clickValue;
+                this.totalClicks++;
+                this.totalEarned += clickValue;
+                this.lastClickTime = Date.now();
+                this.clickTimes.push(Date.now());
+                this.updateActivity();
+                
+                this.showFloatingNumber(clickValue, clientX, clientY);
+                this.updateDisplay();
+                
+                // Add click feedback
+                this.clickButton.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    this.clickButton.style.transform = '';
+                }, 100);
+            }
+
+            getClickValue() {
+                const baseClick = this.clickPower * (1 + this.prestigePoints * 0.5);
+                return Math.floor(baseClick * this.engagementLevel);
+            }
+
+            updateActivity() {
+                this.lastActivityTime = Date.now();
+                this.idleTime = 0;
+            }
+
+            updateEngagement() {
+                const now = Date.now();
+                const timeSinceActivity = now - this.lastActivityTime;
+                const timeSinceClick = now - this.lastClickTime;
+                
+                // Track engagement history
+                this.engagementHistory.push({
+                    time: now,
+                    level: this.engagementLevel,
+                    active: timeSinceActivity < 5000
+                });
+                
+                // Keep only last 5 minutes of history
+                const fiveMinutesAgo = now - 300000;
+                this.engagementHistory = this.engagementHistory.filter(entry => entry.time > fiveMinutesAgo);
+                
+                // Calculate engagement based on recent activity
+                if (timeSinceActivity < 5000) { // Very active (< 5 seconds)
+                    this.engagementLevel = Math.min(2.0, this.engagementLevel + 0.02);
+                    this.totalActiveTime += 100; // Add 100ms of active time
+                } else if (timeSinceActivity < 30000) { // Active (< 30 seconds)
+                    this.engagementLevel = Math.min(1.5, this.engagementLevel + 0.01);
+                    this.totalActiveTime += 50;
+                } else if (timeSinceActivity < 120000) { // Moderately idle (< 2 minutes)
+                    this.engagementLevel = Math.max(0.8, this.engagementLevel - 0.005);
+                    this.totalIdleTime += 100;
+                } else { // Very idle (> 2 minutes)
+                    this.engagementLevel = Math.max(0.3, this.engagementLevel - 0.01);
+                    this.idleTime = timeSinceActivity;
+                    this.totalIdleTime += 100;
+                }
+
+                // Boost for frequent clicking
+                if (timeSinceClick < 1000 && this.engagementLevel < 2.0) {
+                    this.engagementLevel += 0.05;
+                }
+
+                // Track max and min engagement
+                this.maxEngagement = Math.max(this.maxEngagement, this.engagementLevel);
+                this.minEngagement = Math.min(this.minEngagement, this.engagementLevel);
+
+                this.updateEngagementDisplay();
+                this.checkMilestone();
+            }
+
+            updateEngagementDisplay() {
+                const percentage = Math.min(100, (this.engagementLevel / 2.0) * 100);
+                this.engagementFill.style.width = percentage + '%';
+                
+                let status = 'Idle';
+                let color = '#ff6b6b';
+                
+                if (this.engagementLevel >= 1.8) {
+                    status = 'On Fire!';
+                    color = '#ff9ff3';
+                } else if (this.engagementLevel >= 1.4) {
+                    status = 'Very Active';
+                    color = '#48dbfb';
+                } else if (this.engagementLevel >= 1.0) {
+                    status = 'Active';
+                    color = '#feca57';
+                } else if (this.engagementLevel >= 0.6) {
+                    status = 'Moderately Idle';
+                    color = '#ff9f43';
+                }
+                
+                this.engagementText.textContent = status;
+                this.engagementFill.style.background = color;
+            }
+
+            showFloatingNumber(value, x, y) {
+                const floatingEl = document.createElement('div');
+                floatingEl.className = 'floating-number';
+                floatingEl.textContent = '+$' + this.formatNumber(value);
+                floatingEl.style.left = x + 'px';
+                floatingEl.style.top = y + 'px';
+                floatingEl.style.position = 'fixed';
+                
+                document.body.appendChild(floatingEl);
+                
+                setTimeout(() => {
+                    if (floatingEl.parentNode) {
+                        floatingEl.parentNode.removeChild(floatingEl);
+                    }
+                }, 1000);
+            }
+
+            calculateCPS() {
+                let totalCPS = 0;
+                this.autoUpgrades.forEach(upgrade => {
+                    totalCPS += upgrade.count * upgrade.cps;
+                });
+                
+                // Apply prestige and engagement multipliers
+                totalCPS *= (1 + this.prestigePoints * 0.2);
+                totalCPS *= Math.max(0.5, this.engagementLevel * 0.8 + 0.4); // Idle penalty for auto-earnings
+                
+                this.cps = totalCPS;
+            }
+
+            calculateClickPower() {
+                let totalPower = 1;
+                this.clickUpgrades.forEach(upgrade => {
+                    totalPower += upgrade.count * upgrade.power;
+                });
+                this.clickPower = totalPower;
+            }
+
+            getCost(upgrade) {
+                return Math.floor(upgrade.baseCost * Math.pow(1.15, upgrade.count));
+            }
+
+            canAfford(upgrade) {
+                return this.currency >= this.getCost(upgrade);
+            }
+
+            buyUpgrade(upgrade) {
+                const cost = this.getCost(upgrade);
+                if (this.canAfford(upgrade)) {
+                    this.currency -= cost;
+                    upgrade.count++;
+                    this.upgradesPurchased++;
+                    this.updateActivity();
+                    this.updateDisplay();
+                }
+            }
+
+            canPrestige() {
+                return this.currency >= 1000000; // $1M
+            }
+
+            prestige() {
+                if (!this.canPrestige()) return;
+                
+                const ppGain = Math.floor(Math.sqrt(this.currency / 1000000));
+                this.prestigePoints += ppGain;
+                this.totalResets++;
+                
+                // Reset everything except prestige points
+                this.currency = 0;
+                this.clickUpgrades.forEach(upgrade => upgrade.count = 0);
+                this.autoUpgrades.forEach(upgrade => upgrade.count = 0);
+                this.engagementLevel = 1;
+                this.lastActivityTime = Date.now();
+                this.lastClickTime = Date.now();
+                
+                this.updateDisplay();
+            }
+
+            checkMilestone() {
+                const sessionTime = Date.now() - this.sessionStartTime;
+                if (sessionTime >= 300000 && !this.milestoneShown) { // 5 minutes
+                    this.milestoneShown = true;
+                    this.showMilestonePopup();
+                }
+            }
+
+            calculateDetailedStats() {
+                const sessionTime = Date.now() - this.sessionStartTime;
+                const sessionMinutes = sessionTime / 60000;
+                
+                // Click statistics
+                const avgClickValue = this.totalClicks > 0 ? this.totalEarned / this.totalClicks : 0;
+                const clicksPerMinute = this.totalClicks / sessionMinutes;
+                
+                // Time-based statistics
+                const activePercentage = (this.totalActiveTime / sessionTime) * 100;
+                const idlePercentage = (this.totalIdleTime / sessionTime) * 100;
+                
+                // Engagement statistics
+                const avgEngagement = this.engagementHistory.length > 0 ? 
+                    this.engagementHistory.reduce((sum, entry) => sum + entry.level, 0) / this.engagementHistory.length : 1;
+                
+                // Click pattern analysis
+                const recentClicks = this.clickTimes.filter(time => Date.now() - time < 60000); // Last minute
+                const clicksPerSecond = recentClicks.length / 60;
+                
+                // Upgrade efficiency
+                const totalUpgradeCost = this.calculateTotalUpgradeCost();
+                const upgradeEfficiency = this.upgradesPurchased > 0 ? this.cps / this.upgradesPurchased : 0;
+                
+                // Money statistics
+                const moneyPerMinute = this.totalEarned / sessionMinutes;
+                const passivePercentage = this.cps > 0 ? (this.cps * sessionMinutes * 60) / this.totalEarned * 100 : 0;
+                
+                return {
+                    sessionTime: sessionTime,
+                    sessionMinutes: sessionMinutes,
+                    avgClickValue: avgClickValue,
+                    clicksPerMinute: clicksPerMinute,
+                    activePercentage: activePercentage,
+                    idlePercentage: idlePercentage,
+                    avgEngagement: avgEngagement,
+                    clicksPerSecond: clicksPerSecond,
+                    totalUpgradeCost: totalUpgradeCost,
+                    upgradeEfficiency: upgradeEfficiency,
+                    moneyPerMinute: moneyPerMinute,
+                    passivePercentage: passivePercentage
+                };
+            }
+
+            calculateTotalUpgradeCost() {
+                let total = 0;
+                this.clickUpgrades.forEach(upgrade => {
+                    for (let i = 0; i < upgrade.count; i++) {
+                        total += Math.floor(upgrade.baseCost * Math.pow(1.15, i));
+                    }
+                });
+                this.autoUpgrades.forEach(upgrade => {
+                    for (let i = 0; i < upgrade.count; i++) {
+                        total += Math.floor(upgrade.baseCost * Math.pow(1.15, i));
+                    }
+                });
+                return total;
+            }
+
+            showMilestonePopup() {
+                const stats = this.calculateDetailedStats();
+                
+                const overlay = document.createElement('div');
+                overlay.className = 'popup-overlay';
+                
+                const popup = document.createElement('div');
+                popup.className = 'milestone-popup';
+                
+                popup.innerHTML = `
+                    <h2>🎉 5-Minute Milestone Reached! 🎉</h2>
+                    <p>Here's your detailed performance analysis:</p>
+                    
+                    <div class="milestone-stats">
+                        <div class="stat-category">⏱️ Time & Activity</div>
+                        <div class="stat-line">
+                            <span>Session Duration:</span>
+                            <span>${Math.floor(stats.sessionMinutes)}m ${Math.floor((stats.sessionTime % 60000) / 1000)}s</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Active Time:</span>
+                            <span>${stats.activePercentage.toFixed(1)}%</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Idle Time:</span>
+                            <span>${stats.idlePercentage.toFixed(1)}%</span>
+                        </div>
+                        
+                        <div class="stat-category">🖱️ Clicking Performance</div>
+                        <div class="stat-line">
+                            <span>Total Clicks:</span>
+                            <span>${this.formatNumber(this.totalClicks)}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Clicks per Minute:</span>
+                            <span>${stats.clicksPerMinute.toFixed(1)}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Recent CPS:</span>
+                            <span>${stats.clicksPerSecond.toFixed(2)}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Avg Click Value:</span>
+                            <span>${this.formatNumber(stats.avgClickValue)}</span>
+                        </div>
+                        
+                        <div class="stat-category">📊 Engagement Analysis</div>
+                        <div class="stat-line">
+                            <span>Average Engagement:</span>
+                            <span>${(stats.avgEngagement * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Peak Engagement:</span>
+                            <span>${(this.maxEngagement * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Lowest Engagement:</span>
+                            <span>${(this.minEngagement * 100).toFixed(0)}%</span>
+                        </div>
+                        
+                        <div class="stat-category">💰 Financial Performance</div>
+                        <div class="stat-line">
+                            <span>Total Earned:</span>
+                            <span>${this.formatNumber(this.totalEarned)}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Money per Minute:</span>
+                            <span>${this.formatNumber(stats.moneyPerMinute)}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Current Balance:</span>
+                            <span>${this.formatNumber(this.currency)}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Passive Income %:</span>
+                            <span>${Math.min(100, stats.passivePercentage).toFixed(1)}%</span>
+                        </div>
+                        
+                        <div class="stat-category">🛒 Upgrade Strategy</div>
+                        <div class="stat-line">
+                            <span>Upgrades Purchased:</span>
+                            <span>${this.upgradesPurchased}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Total Invested:</span>
+                            <span>${this.formatNumber(stats.totalUpgradeCost)}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Current CPS:</span>
+                            <span>${this.formatNumber(this.cps)}/sec</span>
+                        </div>
+                        <div class="stat-line">
+                            <span>Upgrade Efficiency:</span>
+                            <span>${stats.upgradeEfficiency.toFixed(2)} CPS/upgrade</span>
+                        </div>
+                    </div>
+                    
+                    <button class="close-popup" onclick="this.parentElement.parentElement.remove()">
+                        Continue Playing
+                    </button>
+                `;
+                
+                overlay.appendChild(popup);
+                document.body.appendChild(overlay);
+                
+                // Close on overlay click
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) {
+                        overlay.remove();
+                    }
+                });
+            }
+
+            renderUpgrades() {
+                // Render click upgrades
+                const clickContainer = document.getElementById('clickUpgrades');
+                clickContainer.innerHTML = '';
+                
+                this.clickUpgrades.forEach((upgrade, index) => {
+                    const cost = this.getCost(upgrade);
+                    const canAfford = this.canAfford(upgrade);
+                    
+                    const upgradeEl = document.createElement('div');
+                    upgradeEl.className = `upgrade ${canAfford ? '' : 'disabled'}`;
+                    upgradeEl.innerHTML = `
+                        <div class="upgrade-name">${upgrade.name}</div>
+                        <div class="upgrade-cost">Cost: ${this.formatNumber(cost)}</div>
+                        <div class="upgrade-count">Owned: ${upgrade.count}</div>
+                    `;
+                    
+                    // Add event listeners with proper handling
+                    if (canAfford) {
+                        const clickHandler = (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.buyUpgrade(upgrade);
+                        };
+                        
+                        upgradeEl.addEventListener('click', clickHandler);
+                        upgradeEl.addEventListener('touchstart', clickHandler, { passive: false });
+                        
+                        // Add visual feedback
+                        upgradeEl.addEventListener('mousedown', () => {
+                            upgradeEl.style.transform = 'scale(0.98)';
+                        });
+                        upgradeEl.addEventListener('mouseup', () => {
+                            upgradeEl.style.transform = '';
+                        });
+                        upgradeEl.addEventListener('mouseleave', () => {
+                            upgradeEl.style.transform = '';
+                        });
+                    }
+                    
+                    clickContainer.appendChild(upgradeEl);
+                });
+
+                // Render auto upgrades
+                const autoContainer = document.getElementById('autoUpgrades');
+                autoContainer.innerHTML = '';
+                
+                this.autoUpgrades.forEach((upgrade, index) => {
+                    const cost = this.getCost(upgrade);
+                    const canAfford = this.canAfford(upgrade);
+                    
+                    const upgradeEl = document.createElement('div');
+                    upgradeEl.className = `upgrade ${canAfford ? '' : 'disabled'}`;
+                    upgradeEl.innerHTML = `
+                        <div class="upgrade-name">${upgrade.name}</div>
+                        <div class="upgrade-cost">Cost: ${this.formatNumber(cost)}</div>
+                        <div class="upgrade-count">Owned: ${upgrade.count} (+${upgrade.cps}/sec each)</div>
+                    `;
+                    
+                    // Add event listeners with proper handling
+                    if (canAfford) {
+                        const clickHandler = (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.buyUpgrade(upgrade);
+                        };
+                        
+                        upgradeEl.addEventListener('click', clickHandler);
+                        upgradeEl.addEventListener('touchstart', clickHandler, { passive: false });
+                        
+                        // Add visual feedback
+                        upgradeEl.addEventListener('mousedown', () => {
+                            upgradeEl.style.transform = 'scale(0.98)';
+                        });
+                        upgradeEl.addEventListener('mouseup', () => {
+                            upgradeEl.style.transform = '';
+                        });
+                        upgradeEl.addEventListener('mouseleave', () => {
+                            upgradeEl.style.transform = '';
+                        });
+                    }
+                    
+                    autoContainer.appendChild(upgradeEl);
+                });
+            }
+
+            updateDisplay() {
+                this.calculateClickPower();
+                this.calculateCPS();
+                
+                this.currencyEl.textContent = '$' + this.formatNumber(this.currency);
+                this.cpsDisplay.textContent = '$' + this.formatNumber(this.cps) + '/sec';
+                
+                // Prestige display
+                this.prestigePointsEl.textContent = this.prestigePoints;
+                this.totalResetsEl.textContent = this.totalResets;
+                this.nextPrestigeEl.textContent = '$' + this.formatNumber(Math.max(1000000, this.currency));
+                this.prestigeButton.disabled = !this.canPrestige();
+                
+                // Statistics
+                const sessionTime = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+                this.gameStatsEl.innerHTML = `
+                    <div class="stat-line">
+                        <span>Total Clicks:</span>
+                        <span>${this.formatNumber(this.totalClicks)}</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Total Earned:</span>
+                        <span>$${this.formatNumber(this.totalEarned)}</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Click Power:</span>
+                        <span>$${this.formatNumber(this.getClickValue())}</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Session Time:</span>
+                        <span>${Math.floor(sessionTime / 60)}m ${sessionTime % 60}s</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Engagement:</span>
+                        <span>${(this.engagementLevel * 100).toFixed(0)}%</span>
+                    </div>
+                `;
+                
+                this.renderUpgrades();
+            }
+
+            formatNumber(num) {
+                if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+                if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+                if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+                if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+                return Math.floor(num).toLocaleString();
+            }
+
+            startGameLoop() {
+                setInterval(() => {
+                    // Passive income
+                    if (this.cps > 0) {
+                        const earnings = this.cps / 10; // 10 FPS
+                        this.currency += earnings;
+                        this.totalEarned += earnings;
+                    }
+                    
+                    this.updateEngagement();
+                    this.updateDisplay();
+                }, 100);
+            }
+        }
+
+        // Start the game
+        window.addEventListener('load', () => {
+            new IdleClickerGame();
+        });
+    </script>
+</body>
+</html>
