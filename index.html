@@ -176,13 +176,15 @@
             padding: 15px;
             margin-bottom: 10px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             user-select: none;
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
+            position: relative;
+            overflow: hidden;
         }
 
         .upgrade:hover {
@@ -191,9 +193,15 @@
             transform: translateY(-2px);
         }
 
+        .upgrade:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.3);
+        }
+
         .upgrade.disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            pointer-events: none;
         }
 
         .upgrade.disabled:hover {
@@ -201,20 +209,88 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
+        .upgrade::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            border-radius: 100%;
+            transform: scale(1, 1) translate(-50%);
+            transform-origin: 50% 50%;
+        }
+
+        .upgrade:active::after {
+            animation: ripple 0.6s ease-out;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0, 0);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(20, 20);
+                opacity: 0;
+            }
+        }
+
         .upgrade-name {
             font-weight: bold;
             margin-bottom: 5px;
+            position: relative;
+            z-index: 1;
         }
 
         .upgrade-cost {
             color: #feca57;
             font-size: 0.9em;
+            position: relative;
+            z-index: 1;
         }
 
         .upgrade-count {
             color: #48dbfb;
             font-size: 0.8em;
             margin-top: 5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .upgrade-feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #feca57;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 2;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+
+        .upgrade-feedback.show {
+            animation: feedback 0.5s ease-out;
+        }
+
+        @keyframes feedback {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1);
+            }
         }
 
         .prestige-section {
@@ -468,6 +544,37 @@
                     { name: 'Quantum Miner', baseCost: 500000, count: 0, cps: 2000 }
                 ];
 
+                // Add new properties for ML and prediction
+                this.playerBehavior = {
+                    clickPatterns: [],
+                    upgradePatterns: [],
+                    sessionDurations: [],
+                    engagementPatterns: []
+                };
+                
+                this.mlModel = {
+                    weights: {
+                        clickFrequency: 0.3,
+                        upgradePreference: 0.3,
+                        engagementLevel: 0.2,
+                        sessionDuration: 0.2
+                    },
+                    predictions: {
+                        nextUpgrade: null,
+                        expectedEngagement: 1.0,
+                        optimalPath: []
+                    }
+                };
+                
+                this.dynamicScaling = {
+                    baseMultiplier: 1.0,
+                    difficultyCurve: 1.0,
+                    adaptationRate: 0.01
+                };
+                
+                this.learningRate = 0.01;
+                this.predictionInterval = null;
+
                 this.initializeElements();
                 this.bindEvents();
                 this.startGameLoop();
@@ -561,7 +668,9 @@
             }
 
             getClickValue() {
-                const baseClick = this.clickPower * (1 + this.prestigePoints * 0.5);
+                const baseClick = this.clickPower * 
+                    (1 + this.prestigePoints * 0.5) * 
+                    this.dynamicScaling.baseMultiplier;
                 return Math.floor(baseClick * this.engagementLevel);
             }
 
@@ -663,9 +772,10 @@
                     totalCPS += upgrade.count * upgrade.cps;
                 });
                 
-                // Apply prestige and engagement multipliers
+                // Apply prestige, engagement, and dynamic scaling multipliers
                 totalCPS *= (1 + this.prestigePoints * 0.2);
-                totalCPS *= Math.max(0.5, this.engagementLevel * 0.8 + 0.4); // Idle penalty for auto-earnings
+                totalCPS *= Math.max(0.5, this.engagementLevel * 0.8 + 0.4);
+                totalCPS *= this.dynamicScaling.baseMultiplier;
                 
                 this.cps = totalCPS;
             }
@@ -693,6 +803,19 @@
                     upgrade.count++;
                     this.upgradesPurchased++;
                     this.updateActivity();
+                    
+                    // Add to upgrade history for ML
+                    this.playerBehavior.upgradePatterns.push({
+                        time: Date.now(),
+                        upgrade: upgrade.name,
+                        cost: cost
+                    });
+                    
+                    // Keep only last 1000 patterns
+                    if (this.playerBehavior.upgradePatterns.length > 1000) {
+                        this.playerBehavior.upgradePatterns.shift();
+                    }
+                    
                     this.updateDisplay();
                 }
             }
@@ -914,6 +1037,7 @@
                         <div class="upgrade-name">${upgrade.name}</div>
                         <div class="upgrade-cost">Cost: ${this.formatNumber(cost)}</div>
                         <div class="upgrade-count">Owned: ${upgrade.count}</div>
+                        <div class="upgrade-feedback">+1</div>
                     `;
                     
                     // Add event listeners with proper handling
@@ -921,22 +1045,25 @@
                         const clickHandler = (e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            
+                            // Show feedback animation
+                            const feedback = upgradeEl.querySelector('.upgrade-feedback');
+                            feedback.classList.remove('show');
+                            void feedback.offsetWidth; // Trigger reflow
+                            feedback.classList.add('show');
+                            
+                            // Add click effect
+                            upgradeEl.style.transform = 'scale(0.95)';
+                            setTimeout(() => {
+                                upgradeEl.style.transform = '';
+                            }, 100);
+                            
                             this.buyUpgrade(upgrade);
                         };
                         
+                        // Use both click and touchstart for better mobile support
                         upgradeEl.addEventListener('click', clickHandler);
                         upgradeEl.addEventListener('touchstart', clickHandler, { passive: false });
-                        
-                        // Add visual feedback
-                        upgradeEl.addEventListener('mousedown', () => {
-                            upgradeEl.style.transform = 'scale(0.98)';
-                        });
-                        upgradeEl.addEventListener('mouseup', () => {
-                            upgradeEl.style.transform = '';
-                        });
-                        upgradeEl.addEventListener('mouseleave', () => {
-                            upgradeEl.style.transform = '';
-                        });
                     }
                     
                     clickContainer.appendChild(upgradeEl);
@@ -956,6 +1083,7 @@
                         <div class="upgrade-name">${upgrade.name}</div>
                         <div class="upgrade-cost">Cost: ${this.formatNumber(cost)}</div>
                         <div class="upgrade-count">Owned: ${upgrade.count} (+${upgrade.cps}/sec each)</div>
+                        <div class="upgrade-feedback">+1</div>
                     `;
                     
                     // Add event listeners with proper handling
@@ -963,22 +1091,25 @@
                         const clickHandler = (e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            
+                            // Show feedback animation
+                            const feedback = upgradeEl.querySelector('.upgrade-feedback');
+                            feedback.classList.remove('show');
+                            void feedback.offsetWidth; // Trigger reflow
+                            feedback.classList.add('show');
+                            
+                            // Add click effect
+                            upgradeEl.style.transform = 'scale(0.95)';
+                            setTimeout(() => {
+                                upgradeEl.style.transform = '';
+                            }, 100);
+                            
                             this.buyUpgrade(upgrade);
                         };
                         
+                        // Use both click and touchstart for better mobile support
                         upgradeEl.addEventListener('click', clickHandler);
                         upgradeEl.addEventListener('touchstart', clickHandler, { passive: false });
-                        
-                        // Add visual feedback
-                        upgradeEl.addEventListener('mousedown', () => {
-                            upgradeEl.style.transform = 'scale(0.98)';
-                        });
-                        upgradeEl.addEventListener('mouseup', () => {
-                            upgradeEl.style.transform = '';
-                        });
-                        upgradeEl.addEventListener('mouseleave', () => {
-                            upgradeEl.style.transform = '';
-                        });
                     }
                     
                     autoContainer.appendChild(upgradeEl);
@@ -1024,6 +1155,28 @@
                 `;
                 
                 this.renderUpgrades();
+                
+                // Add ML predictions to the UI with safety checks
+                const statsContainer = document.getElementById('gameStats');
+                const mlStats = document.createElement('div');
+                mlStats.className = 'ml-stats';
+                mlStats.innerHTML = `
+                    <div class="stat-category">🤖 AI Predictions</div>
+                    <div class="stat-line">
+                        <span>Next Upgrade:</span>
+                        <span>${this.mlModel.predictions.nextUpgrade?.name || 'Calculating...'}</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Expected Engagement:</span>
+                        <span>${((this.mlModel.predictions.expectedEngagement || 1) * 100).toFixed(0)}%</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>Difficulty Level:</span>
+                        <span>${((this.dynamicScaling.difficultyCurve || 1) * 100).toFixed(0)}%</span>
+                    </div>
+                `;
+                
+                statsContainer.appendChild(mlStats);
             }
 
             formatNumber(num) {
@@ -1046,6 +1199,166 @@
                     this.updateEngagement();
                     this.updateDisplay();
                 }, 100);
+                
+                // Add prediction interval
+                this.predictionInterval = setInterval(() => {
+                    this.updatePlayerBehavior();
+                }, 5000); // Update predictions every 5 seconds
+            }
+
+            // Add new methods for ML and prediction
+            updatePlayerBehavior() {
+                const now = Date.now();
+                
+                // Track click patterns
+                this.playerBehavior.clickPatterns.push({
+                    time: now,
+                    interval: this.clickTimes.length > 1 ? 
+                        now - this.clickTimes[this.clickTimes.length - 2] : 0
+                });
+                
+                // Keep only last 1000 patterns
+                if (this.playerBehavior.clickPatterns.length > 1000) {
+                    this.playerBehavior.clickPatterns.shift();
+                }
+                
+                // Update ML model
+                this.updateMLModel();
+            }
+
+            updateMLModel() {
+                // Calculate average click frequency
+                const recentClicks = this.playerBehavior.clickPatterns.slice(-50);
+                const avgClickInterval = recentClicks.length > 0 ? 
+                    recentClicks.reduce((sum, pattern) => sum + (pattern.interval || 0), 0) / recentClicks.length : 0;
+                
+                // Predict next upgrade
+                this.predictNextUpgrade();
+                
+                // Update engagement prediction
+                this.predictEngagement();
+                
+                // Update optimal path
+                this.calculateOptimalPath();
+                
+                // Adjust dynamic scaling
+                this.adjustDifficulty();
+            }
+
+            predictNextUpgrade() {
+                const upgradeScores = [];
+                
+                // Calculate scores for each upgrade based on player behavior
+                this.clickUpgrades.concat(this.autoUpgrades).forEach(upgrade => {
+                    let score = 0;
+                    
+                    // Factor in current currency and upgrade cost
+                    const cost = this.getCost(upgrade);
+                    const affordability = cost > 0 ? this.currency / cost : 0;
+                    
+                    // Factor in player's upgrade history
+                    const upgradeHistory = this.playerBehavior.upgradePatterns
+                        .filter(p => p.upgrade === upgrade.name);
+                    const upgradeFrequency = upgradeHistory.length;
+                    
+                    // Calculate score based on multiple factors
+                    score = (
+                        affordability * 0.4 +
+                        upgradeFrequency * 0.3 +
+                        ((upgrade.cps || upgrade.power) || 0) * 0.3
+                    );
+                    
+                    upgradeScores.push({ upgrade, score });
+                });
+                
+                // Sort by score and predict next upgrade
+                upgradeScores.sort((a, b) => b.score - a.score);
+                this.mlModel.predictions.nextUpgrade = upgradeScores[0]?.upgrade;
+            }
+
+            predictEngagement() {
+                const recentEngagement = this.engagementHistory.slice(-50);
+                const avgEngagement = recentEngagement.length > 0 ? 
+                    recentEngagement.reduce((sum, entry) => sum + (entry.level || 1), 0) / recentEngagement.length : 1;
+                
+                // Predict future engagement based on current trend
+                const trend = this.calculateEngagementTrend();
+                this.mlModel.predictions.expectedEngagement = 
+                    Math.max(0.3, Math.min(2.0, avgEngagement + (trend || 0)));
+            }
+
+            calculateEngagementTrend() {
+                const recentHistory = this.engagementHistory.slice(-20);
+                if (recentHistory.length < 2) return 0;
+                
+                let trend = 0;
+                for (let i = 1; i < recentHistory.length; i++) {
+                    const currentLevel = recentHistory[i].level || 1;
+                    const previousLevel = recentHistory[i-1].level || 1;
+                    trend += currentLevel - previousLevel;
+                }
+                return trend / (recentHistory.length - 1);
+            }
+
+            calculateOptimalPath() {
+                const path = [];
+                let simulatedCurrency = this.currency;
+                let simulatedCPS = this.cps;
+                
+                // Simulate next 5 optimal upgrades
+                for (let i = 0; i < 5; i++) {
+                    let bestUpgrade = null;
+                    let bestEfficiency = 0;
+                    
+                    this.clickUpgrades.concat(this.autoUpgrades).forEach(upgrade => {
+                        const cost = this.getCost(upgrade);
+                        if (simulatedCurrency >= cost) {
+                            const efficiency = (upgrade.cps || upgrade.power) / cost;
+                            if (efficiency > bestEfficiency) {
+                                bestEfficiency = efficiency;
+                                bestUpgrade = upgrade;
+                            }
+                        }
+                    });
+                    
+                    if (bestUpgrade) {
+                        path.push(bestUpgrade);
+                        simulatedCurrency -= this.getCost(bestUpgrade);
+                        simulatedCPS += bestUpgrade.cps || 0;
+                    }
+                }
+                
+                this.mlModel.predictions.optimalPath = path;
+            }
+
+            adjustDifficulty() {
+                // Calculate player performance metrics
+                const performance = this.calculatePlayerPerformance();
+                
+                // Ensure we have valid numbers
+                const adaptation = 1 + (performance - 0.5) * this.dynamicScaling.adaptationRate;
+                this.dynamicScaling.difficultyCurve = Math.max(0.5, Math.min(2.0, 
+                    this.dynamicScaling.difficultyCurve * adaptation));
+                
+                // Update base multiplier with bounds
+                this.dynamicScaling.baseMultiplier = Math.max(0.5, Math.min(2.0,
+                    1 + (this.dynamicScaling.difficultyCurve - 1) * 0.5));
+            }
+
+            calculatePlayerPerformance() {
+                const recentClicks = this.clickTimes.filter(time => 
+                    Date.now() - time < 60000);
+                const clicksPerSecond = recentClicks.length / 60;
+                
+                const expectedCPS = this.cps * this.engagementLevel;
+                const sessionDuration = Math.max(1, (Date.now() - this.sessionStartTime) / 1000);
+                const actualCPS = this.totalEarned / sessionDuration;
+                
+                // Ensure we don't divide by zero or use undefined values
+                const performance = (clicksPerSecond * 0.3 + 
+                        (expectedCPS > 0 ? actualCPS / expectedCPS : 0) * 0.7);
+                
+                return Math.max(0, Math.min(1, performance)); // Clamp between 0 and 1
             }
         }
 
