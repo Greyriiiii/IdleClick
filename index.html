@@ -844,7 +844,7 @@
 
             checkMilestone() {
                 const sessionTime = Date.now() - this.sessionStartTime;
-                if (sessionTime >= 300000 && !this.milestoneShown) { // 5 minutes
+                if (sessionTime >= 120000 && !this.milestoneShown) { // 2 minutes
                     this.milestoneShown = true;
                     this.showMilestonePopup();
                 }
